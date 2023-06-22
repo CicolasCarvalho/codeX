@@ -1,0 +1,10 @@
+*
+
+!codeX.py
+!.templates/
+!.templates/*
+!.editorconfig
+!.gitignore
+!.todo.md
+!README.md
+!LICENSE
