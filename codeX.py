@@ -17,16 +17,16 @@ def sortFiles(l: list[str]):
     por padrão ordena pela data e número do exercicio
     """
 
-    fileNumbers = list(map(splitFileName, l))
+    # fileNumbers = list(map(splitFileName, l))
 
-    newL = []
-    for f in fileNumbers:
-        newL = sortingFilesList(newL, f)
-    newL = list(map(lambda f: f["name"], newL))
+    # newL = []
+    # for f in fileNumbers:
+    #     newL = sortingFilesList(newL, f)
+    # newL = list(map(lambda f: f["name"], newL))
 
-    print(newL)
+    print(l)
 
-    return newL
+    return l
 
 def mapLines(l):
     """
@@ -54,7 +54,7 @@ opts = {
 
     "indentation_type": IndentationType.SPACE,
     "indentation_size": 4,
-    "block_scoping": True,
+    "block_scoping": False,
 
     "name": "Nícolas dos Santos Carvalho",
     "ra": "128660",
@@ -72,20 +72,25 @@ partsCombined = {
 onceList = {}
 relativeExNumber = 0
 
-def main(argv):
+def main(argv: list[str]):
     print(argv)
 
     if len(argv) <= 1:
         print("ERRO: Precisa de um caminho para concatenar os arquivos, porém nenhum argumento foi passado")
         return 1
 
-    folderPath = argv[1]
+    argv = argv[::-1]
+    argv.pop()
+    folderPath = argv.pop()
 
     fileNames = os.listdir(folderPath)
     fileNames = list(filter(
         lambda f: re.match(fileregex, f),
         fileNames
     ))
+
+    while len(argv) > 0:
+        fileNames.append(argv.pop())
 
     fileNames = sortFiles(fileNames)
 
@@ -130,30 +135,28 @@ def writeFile(filePath, parts):
 def setupParts(parts, exNumber):
     global relativeExNumber
     body = ""
+    relativeIndentation = 0
+    relativeExNumber += 1
 
-    if parts["main"] != "":
-        relativeIndentation = 0
-        relativeExNumber += 1
-        partsCombined["incl"] += parts["incl"]
+    number = exNumber if opts['absolute_numeration'] else relativeExNumber;
 
-        number = exNumber if opts['absolute_numeration'] else relativeExNumber;
+    if number >= 0:
+        body = increaseIndentation(f"\n// {number}\n", 1)
 
-        if number >= 0:
-            body = increaseIndentation(f"\n// {number}\n", 1)
+    if opts["block_scoping"]:
+        body += increaseIndentation("{\n", 1);
+        relativeIndentation += 1
 
-        if opts["block_scoping"]:
-            body += increaseIndentation("{\n", 1);
-            relativeIndentation += 1
+    if parts["expl"] != "":
+        body += increaseIndentation(parts["expl"], relativeIndentation+1) + "\n"
 
-        if parts["expl"] != "":
-            body += increaseIndentation(parts["expl"], relativeIndentation+1) + "\n"
+    body += increaseIndentation(parts["main"], relativeIndentation)
 
-        body += increaseIndentation(parts["main"], relativeIndentation)
+    if opts["block_scoping"]:
+        body += increaseIndentation("}\n", relativeIndentation)
+        relativeIndentation -= 1
 
-        if opts["block_scoping"]:
-            body += increaseIndentation("}\n", relativeIndentation)
-            relativeIndentation -= 1
-
+    partsCombined["incl"] += parts["incl"]
     partsCombined["main"] += body
     partsCombined["expl-all"] += parts["expl-all"]
     partsCombined["defn"] += parts["defn"]
@@ -216,6 +219,7 @@ class Interpreter:
                 i = d["index"] + 1
 
                 if opts["strict"] and d["type"] == "start":
+                    print(d["name"])
                     self.partitions[d["name"]] += d["value"]
                 else:
                     #TODO: implementar in-line (non strict mode)
@@ -228,7 +232,7 @@ class Interpreter:
         if lineTrimed.startswith("//@ignore"):
             return {"index": i+1, "type": "ignore", "value": ""}
         elif lineTrimed.startswith("//@once "):
-            name = re.search(r"((?<=//@once )[a-zA-Z_]*)", lineTrimed).group()
+            name = re.search(r"((?<=//@once ).*)$", lineTrimed).group()
 
             if name in onceList:
                 onceList[name] += 1
@@ -242,7 +246,7 @@ class Interpreter:
                 "value": ""
             }
         elif lineTrimed.startswith("//@start "):
-            name = re.search(r"((?<=//@start )[a-zA-Z_]*)", lineTrimed).group()
+            name = re.search(r"((?<=//@start )[a-zA-Z_].*)$", lineTrimed).group()
             d = {"type": ""}
             l = ""
             body = ""
