@@ -59,6 +59,65 @@ opts = {
     "name": "Nícolas dos Santos Carvalho",
     "ra": "128660",
 }
+
+################################################################################
+
+class Argument:
+    def __init__(self, names, requirements):
+        self.names = names
+        self.requirements = requirements
+
+args: list[Argument] = [
+    Argument(["-bs", "--block_scoping"],        0),
+    Argument(["-rn", "--relative_numeration"],  0), 
+    Argument(["-is", "--indentation_size"],     1), 
+    Argument(["-it", "--indentation_type"],     1), 
+]
+
+def argParsing(argv: list[str], argsTemplate: list[Argument]):
+    newL = []
+    i = 0
+
+    while i < len(argv):
+        name = argv[i]
+
+        for a in argsTemplate:
+            if name in a.names:
+                i += 1
+                
+                req = a.requirements
+                name = f"{a.names[0]} {' '.join(argv[i:i+req])}"
+
+                i += req - 1
+                break
+
+        newL.append(name.strip())
+        i += 1
+
+    return newL
+
+def argEvaluation(argv: list[str]):
+    folderPath = argv.pop(0)
+    files = []
+
+    while len(argv) > 0:
+        arg = argv.pop().split(" ")
+
+        if arg[0] == "-bs":
+            opts["block_scoping"] = True
+        elif arg[0] == "-rn":
+            opts["absolute_numeration"] = False
+        elif arg[0] == "-is":
+            opts["indentation_size"] = int(arg[1])
+        elif arg[0] == "-it":
+            if arg[1].lower() == "tab": opts["indentation_type"] = IndentationType.TAB
+            elif arg[1].lower() == "space": opts["indentation_type"] = IndentationType.SPACE
+            else: raise f"Unknown IndenatationType: {arg[1]}"
+        else:
+            files.append(arg[0])
+
+    return (folderPath, files)
+
 ################################################################################
 
 partsCombined = {
@@ -73,15 +132,16 @@ onceList = {}
 relativeExNumber = 0
 
 def main(argv: list[str]):
+    argv = argParsing(argv, args)
     print(argv)
 
     if len(argv) <= 1:
         print("ERRO: Precisa de um caminho para concatenar os arquivos, porém nenhum argumento foi passado")
         return 1
-
-    argv = argv[::-1]
-    argv.pop()
-    folderPath = argv.pop()
+    
+    argv.pop(0)
+    (folderPath, files) = argEvaluation(argv)
+    print(folderPath)
 
     fileNames = os.listdir(folderPath)
     fileNames = list(filter(
@@ -89,9 +149,7 @@ def main(argv: list[str]):
         fileNames
     ))
 
-    while len(argv) > 0:
-        fileNames.append(argv.pop())
-
+    fileNames += files
     fileNames = sortFiles(fileNames)
 
     for f in fileNames:
