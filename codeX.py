@@ -69,9 +69,9 @@ class Argument:
 
 args: list[Argument] = [
     Argument(["-bs", "--block_scoping"],        0),
-    Argument(["-rn", "--relative_numeration"],  0), 
-    Argument(["-is", "--indentation_size"],     1), 
-    Argument(["-it", "--indentation_type"],     1), 
+    Argument(["-rn", "--relative_numeration"],  0),
+    Argument(["-is", "--indentation_size"],     1),
+    Argument(["-it", "--indentation_type"],     1),
 ]
 
 def argParsing(argv: list[str], argsTemplate: list[Argument]):
@@ -84,7 +84,7 @@ def argParsing(argv: list[str], argsTemplate: list[Argument]):
         for a in argsTemplate:
             if name in a.names:
                 i += 1
-                
+
                 req = a.requirements
                 name = f"{a.names[0]} {' '.join(argv[i:i+req])}"
 
@@ -138,7 +138,7 @@ def main(argv: list[str]):
     if len(argv) <= 1:
         print("ERRO: Precisa de um caminho para concatenar os arquivos, porém nenhum argumento foi passado")
         return 1
-    
+
     argv.pop(0)
     (folderPath, files) = argEvaluation(argv)
     print(folderPath)
@@ -152,13 +152,22 @@ def main(argv: list[str]):
     fileNames += files
     fileNames = sortFiles(fileNames)
 
+    fileParts = []
+
     for f in fileNames:
         # message(os.path.join(folderPath, f), 0)
         reg = re.search(numberegex, f);
         fileNumber = reg.group() if reg != None else -1;
         interp = Interpreter()
         interp.interpretFiles(os.path.join(folderPath, f))
-        setupParts(interp.partitions, int(fileNumber))
+
+        part = interp.partitions
+        part["number"] = int(fileNumber)
+        fileParts = addByPrior(fileParts, part)
+
+    for p in fileParts:
+        setupParts(p, p["number"])
+
 
     writeFile(os.path.join(folderPath), partsCombined)
     return 0
@@ -198,8 +207,8 @@ def setupParts(parts, exNumber):
 
     number = exNumber if opts['absolute_numeration'] else relativeExNumber;
 
-    if number >= 0:
-        body = increaseIndentation(f"\n// {number}\n", 1)
+    if number >= 0 and (parts["main"] != "" or parts["expl"] != ""):
+        body = increaseIndentation(f"// {number}\n", 1)
 
     if opts["block_scoping"]:
         body += increaseIndentation("{\n", 1);
@@ -208,17 +217,18 @@ def setupParts(parts, exNumber):
     if parts["expl"] != "":
         body += increaseIndentation(parts["expl"], relativeIndentation+1) + "\n"
 
-    body += increaseIndentation(parts["main"], relativeIndentation)
+    if parts["main"] != "":
+        body += increaseIndentation(parts["main"], relativeIndentation)
 
     if opts["block_scoping"]:
         body += increaseIndentation("}\n", relativeIndentation)
         relativeIndentation -= 1
 
     partsCombined["incl"] += parts["incl"]
-    partsCombined["main"] += body
+    partsCombined["main"] += body +                 ("\n" if body != "" else "")
     partsCombined["expl-all"] += parts["expl-all"]
     partsCombined["defn"] += parts["defn"]
-    partsCombined["func"] += parts["func"]
+    partsCombined["func"] += parts["func"] +        ("\n" if parts["func"] != "" else "")
 
 def getIndentationType():
     return (" " if opts["indentation_type"] == IndentationType.SPACE else "\t")
@@ -255,9 +265,20 @@ def sortingFilesList(filesList: list[str], file):
     filesList.append(file)
     return filesList
 
+def addByPrior(partList, elem):
+    print(elem["prior"])
+    for i in range(0, len(partList)):
+        if elem["prior"] > partList[i]["prior"]:
+            partList.insert(i, elem)
+            return partList
+
+    partList.append(elem)
+    return partList
+
 class Interpreter:
     def __init__(self):
         self.partitions = {
+            "prior": 7,
             "expl-all": "",
             "expl": "",
             "incl": "",
@@ -275,6 +296,10 @@ class Interpreter:
                 d = self.parseData(data, i)
 
                 i = d["index"] + 1
+
+                if d["type"] == "prior":
+                    self.partitions["prior"] = d["value"]
+                    pass
 
                 if opts["strict"] and d["type"] == "start":
                     print(d["name"])
@@ -320,6 +345,10 @@ class Interpreter:
             return {"index": i, "type": "start", "name": name, "value": body}
         elif lineTrimed.startswith("//@end"):
             return {"index": i, "type": "end", "value": ""}
+        elif lineTrimed.startswith("//@prior"):
+            prior = re.search(r"((?<=//@prior )[0-9]+)$", lineTrimed).group()
+
+            return {"index": i, "type": "prior", "value": int(prior)}
 
         return {"index": i, "type": "line", "value": line}
 
